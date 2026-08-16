@@ -1,10 +1,36 @@
 name: Resume Upload Helper
 
 on:
-  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/resume-upload.yml'
+
+permissions:
+  contents: write
 
 jobs:
-  noop:
+  reconstruct-resume:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "resume upload helper"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reconstruct and verify PDF
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .resume_upload/chunk00 .resume_upload/chunk01 .resume_upload/chunk02 .resume_upload/chunk03 .resume_upload/chunk04 .resume_upload/chunk05 .resume_upload/chunk06 | base64 --decode > Resume_2026-08-16.pdf
+          echo 'a3af12ff1e69c4c782bd8622f54b9ced1a895c9e585b7ac053a34aa145c1f711  Resume_2026-08-16.pdf' | sha256sum -c -
+          test "$(stat -c%s Resume_2026-08-16.pdf)" -eq 28645
+          head -c 5 Resume_2026-08-16.pdf | grep -q '%PDF-'
+      - name: Replace old resume and clean staging files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f Resume_2026-07-21.pdf
+          rm -rf .resume_upload
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Update resume PDF'
+          git push
